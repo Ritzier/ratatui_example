@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 color-eyre = "0.6.3"
 ratatui = "0.28.1"
+strum = "0.26.3"
 tokio = "1.40.0"
