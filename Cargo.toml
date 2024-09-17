@@ -7,3 +7,7 @@ edition = "2021"
 color-eyre = "0.6.3"
 ratatui = "0.28.1"
 tokio = "1.40.0"
+
+[dev-dependencies]
+strum = "0.26"
+rand = "0.8"
