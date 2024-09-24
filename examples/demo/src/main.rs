@@ -3,6 +3,9 @@ mod app;
 mod config;
 mod logging;
 
-fn main() {
-    println!("Hello, world!");
+#[tokio::main]
+async fn main() -> color_eyre::Result<()> {
+    crate::logging::init()?;
+
+    Ok(())
 }
