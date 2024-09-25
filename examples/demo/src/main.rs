@@ -16,6 +16,5 @@ async fn main() -> color_eyre::Result<()> {
 
     let _args = Cli::parse();
 
-    println!("hi");
     Ok(())
 }
