@@ -4,6 +4,7 @@ use cli::Cli;
 mod action;
 mod app;
 mod cli;
+mod components;
 mod config;
 mod errors;
 mod logging;
