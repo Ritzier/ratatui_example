@@ -1,16 +1,18 @@
 use std::time::Duration;
 
 use color_eyre::Result;
+use rand::{thread_rng, Rng};
 use ratatui::{
     buffer::Buffer,
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
-    layout::{Alignment, Constraint, Layout, Rect},
+    layout::{Alignment, Constraint, Flex, Layout, Rect},
     style::{palette::tailwind, Color, Style, Stylize},
-    text::{Line, Span},
-    widgets::{Block, Borders, Gauge, Padding, Paragraph, Widget},
+    text::{Line, Span, Text},
+    widgets::{block::Title, Block, BorderType, Borders, Gauge, Padding, Paragraph, Widget},
     DefaultTerminal,
 };
 
+const PROGRESS_MAX: f64 = 100.0;
 const GAUGE1_COLOR: Color = tailwind::RED.c800;
 const GAUGE2_COLOR: Color = tailwind::GREEN.c800;
 const GAUGE3_COLOR: Color = tailwind::BLUE.c800;
@@ -20,11 +22,8 @@ const CUSTOM_LABEL_COLOR: Color = tailwind::SLATE.c200;
 #[derive(Debug, Default, Clone, Copy)]
 struct App {
     state: AppState,
-    progress_columns: u16,
-    progress1: u16,
-    progress2: f64,
-    progress3: f64,
-    progress4: f64,
+    progress: f64,
+    pop_help: bool,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -49,27 +48,19 @@ impl App {
         while self.state != AppState::Quitting {
             terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
             self.handle_events()?;
-            self.update(terminal.size()?.width)
+            self.update()
         }
         Ok(())
     }
 
-    fn update(&mut self, terminal_width: u16) {
+    fn update(&mut self) {
         if self.state != AppState::Started {
             return;
         }
 
-        // progress1 and progress2 help show the difference between ratio and percentage measuring
-        // the same thing, but converting to either a u16 or f64. Effectively, we're showing the
-        // difference between how a continous gauge acts for floor and rounded values.
-        self.progress_columns = (self.progress_columns + 1).clamp(0, terminal_width);
-        self.progress1 = self.progress_columns * 100 / terminal_width;
-        self.progress2 = f64::from(self.progress_columns) * 100.0 / f64::from(terminal_width);
-
-        // progress and progress4 similarly show the difference between unicode and non-unicode
-        // gauges measuring the same thing.
-        self.progress3 = (self.progress3 + 0.1).clamp(40.0, 100.0);
-        self.progress4 = (self.progress4 + 0.1).clamp(40.0, 100.0)
+        let mut rng = thread_rng();
+        self.progress += rng.gen_range(0.5..1.0);
+        self.progress = self.progress.clamp(0.0, PROGRESS_MAX)
     }
 
     fn handle_events(&mut self) -> Result<()> {
@@ -80,6 +71,8 @@ impl App {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => self.quit(),
                         KeyCode::Char(' ') | KeyCode::Enter => self.toggle_start_pause(),
+                        KeyCode::Char('?') => self.toggle_help(),
+                        KeyCode::Char('r') => self.reset_progress(),
                         _ => {}
                     }
                 }
@@ -98,6 +91,14 @@ impl App {
 
     fn quit(&mut self) {
         self.state = AppState::Quitting;
+    }
+
+    fn toggle_help(&mut self) {
+        self.pop_help = !self.pop_help;
+    }
+
+    fn reset_progress(&mut self) {
+        self.progress = 0.0;
     }
 }
 
@@ -120,6 +121,8 @@ impl Widget for &App {
         self.render_gauge2(gauge2_area, buf);
         self.render_gauge3(gauge3_area, buf);
         self.render_gauge4(gauge4_area, buf);
+
+        self.render_help_popup(area, buf);
     }
 }
 
@@ -141,7 +144,9 @@ fn render_footer(area: Rect, buf: &mut Buffer) {
         "<Esc>".blue().bold(),
         " or ".into(),
         "<q>".blue().bold(),
-        " to Quit".into(),
+        " to Quit | Press ".into(),
+        "<r>".blue().bold(),
+        " to reset progress".into(),
     ]);
 
     Paragraph::new(footer_text)
@@ -156,45 +161,86 @@ impl App {
         Gauge::default()
             .block(title)
             .gauge_style(GAUGE1_COLOR)
-            .percent(self.progress1)
+            .percent(self.progress as u16)
             .render(area, buf);
     }
 
     fn render_gauge2(&self, area: Rect, buf: &mut Buffer) {
         let title = title_block("Gauge with ratio and custom label");
         let label = Span::styled(
-            format!("{:.1}/100", self.progress2),
+            format!("{:.1}/100", self.progress),
             Style::new().italic().bold().fg(CUSTOM_LABEL_COLOR),
         );
         Gauge::default()
             .block(title)
             .gauge_style(GAUGE2_COLOR)
-            .ratio(self.progress2 / 100.0)
+            .ratio(self.progress / 100.0)
             .label(label)
             .render(area, buf);
     }
 
     fn render_gauge3(&self, area: Rect, buf: &mut Buffer) {
         let title = title_block("Gauge with ratio (no unicode)");
-        let label = format!("{:.1}%", self.progress3);
+        let label = format!("{:.1}%", self.progress);
         Gauge::default()
             .block(title)
             .gauge_style(GAUGE3_COLOR)
-            .ratio(self.progress3 / 100.0)
+            .ratio(self.progress / 100.0)
             .label(label)
             .render(area, buf);
     }
 
     fn render_gauge4(&self, area: Rect, buf: &mut Buffer) {
         let title = title_block("Gauge with ratio (unicode)");
-        let label = format!("{:.1}%", self.progress4);
+        let label = format!("{:.1}%", self.progress);
         Gauge::default()
             .block(title)
             .gauge_style(GAUGE4_COLOR)
-            .ratio(self.progress4 / 100.0)
+            .ratio(self.progress / 100.0)
             .label(label)
             .use_unicode(true)
             .render(area, buf);
+    }
+
+    fn render_help_popup(&self, area: Rect, buf: &mut Buffer) {
+        if self.pop_help {
+            let popup_area = popup_area(area, 40, 40);
+            Clear.render(popup_area, buf);
+
+            let key_style = Style::new().dark_gray();
+            let desc_style = Style::new().bold().blue();
+
+            let text = vec![
+                "".into(),
+                Line::from(Span::styled("Keyboard ShortCut", Style::new().green())),
+                "".into(),
+                Line::from(vec![
+                    Span::styled("<Space> | <Enter> ", key_style),
+                    Span::styled("Toggle Progress", desc_style),
+                ]),
+                "".into(),
+                Line::from(vec![
+                    Span::styled("<Esc> | <q>       ", key_style),
+                    Span::styled("Quit", desc_style),
+                ]),
+                "".into(),
+                Line::from(vec![
+                    Span::styled("<r>               ", key_style),
+                    Span::styled("Reset Progress", desc_style),
+                ]),
+            ];
+
+            Paragraph::new(text)
+                .block(
+                    Block::default()
+                        .title(Title::from("Title").alignment(Alignment::Center))
+                        .border_style(Style::default().fg(Color::Red))
+                        .border_type(BorderType::Rounded)
+                        .borders(Borders::ALL),
+                )
+                .alignment(Alignment::Center)
+                .render(popup_area, buf)
+        }
     }
 }
 
@@ -205,4 +251,24 @@ fn title_block(title: &str) -> Block {
         .padding(Padding::vertical(1))
         .title(title)
         .fg(CUSTOM_LABEL_COLOR)
+}
+
+fn popup_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
+    let horizontal = Layout::horizontal([Constraint::Percentage(percent_x)]).flex(Flex::Center);
+    let vertical = Layout::vertical([Constraint::Percentage(percent_y)]).flex(Flex::Center);
+    let [area] = horizontal.areas(area);
+    let [area] = vertical.areas(area);
+    area
+}
+
+struct Clear;
+
+impl Widget for Clear {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        for x in area.left()..area.right() {
+            for y in area.top()..area.bottom() {
+                buf.get_mut(x, y).reset();
+            }
+        }
+    }
 }
