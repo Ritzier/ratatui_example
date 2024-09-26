@@ -32,6 +32,7 @@ enum AppState {
     #[default]
     Running,
     Started,
+    Paused,
     Quitting,
 }
 
@@ -78,7 +79,7 @@ impl App {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => self.quit(),
-                        KeyCode::Char(' ') | KeyCode::Enter => self.start(),
+                        KeyCode::Char(' ') | KeyCode::Enter => self.toggle_start_pause(),
                         _ => {}
                     }
                 }
@@ -87,8 +88,12 @@ impl App {
         Ok(())
     }
 
-    fn start(&mut self) {
-        self.state = AppState::Started;
+    fn toggle_start_pause(&mut self) {
+        if self.state == AppState::Started {
+            self.state = AppState::Paused
+        } else {
+            self.state = AppState::Started;
+        }
     }
 
     fn quit(&mut self) {
