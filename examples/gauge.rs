@@ -7,7 +7,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::{palette::tailwind, Color, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, Padding, Paragraph, Widget},
+    widgets::{block::Title, Block, Borders, Gauge, Padding, Paragraph, Widget},
     DefaultTerminal,
 };
 
@@ -132,10 +132,21 @@ fn render_header(area: Rect, buf: &mut Buffer) {
 }
 
 fn render_footer(area: Rect, buf: &mut Buffer) {
-    Paragraph::new("Press ENTER to start")
+    let footer_text = Line::from(vec![
+        "Press ".into(),
+        "<Space>".blue().bold(),
+        " or ".into(),
+        "<Enter>".blue().bold(),
+        " to Start/Pause | Press ".into(),
+        "<Esc>".blue().bold(),
+        " or ".into(),
+        "<q>".blue().bold(),
+        " to Quit".into(),
+    ]);
+
+    Paragraph::new(footer_text)
         .alignment(Alignment::Center)
         .fg(CUSTOM_LABEL_COLOR)
-        .bold()
         .render(area, buf);
 }
 
