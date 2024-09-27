@@ -8,7 +8,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Flex, Layout, Rect},
     style::{palette::tailwind, Color, Style, Stylize},
     text::{Line, Span, Text},
-    widgets::{block::Title, Block, BorderType, Borders, Gauge, Padding, Paragraph, Widget},
+    widgets::{block::Title, Block, BorderType, Borders, Gauge, Padding, Paragraph, Widget, Wrap},
     DefaultTerminal,
 };
 
@@ -24,6 +24,7 @@ struct App {
     state: AppState,
     progress: f64,
     pop_help: bool,
+    pop_quit: bool,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -68,12 +69,19 @@ impl App {
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => self.quit(),
-                        KeyCode::Char(' ') | KeyCode::Enter => self.toggle_start_pause(),
-                        KeyCode::Char('?') => self.toggle_help(),
-                        KeyCode::Char('r') => self.reset_progress(),
-                        _ => {}
+                    if self.pop_quit {
+                        match key.code {
+                            KeyCode::Char('y') | KeyCode::Char('q') => self.quit(),
+                            _ => {}
+                        }
+                    } else {
+                        match key.code {
+                            KeyCode::Char('q') | KeyCode::Esc => self.popup_quit(),
+                            KeyCode::Char(' ') | KeyCode::Enter => self.toggle_start_pause(),
+                            KeyCode::Char('?') => self.toggle_help(),
+                            KeyCode::Char('r') => self.reset_progress(),
+                            _ => {}
+                        }
                     }
                 }
             }
@@ -100,6 +108,10 @@ impl App {
     fn reset_progress(&mut self) {
         self.progress = 0.0;
     }
+
+    fn popup_quit(&mut self) {
+        self.pop_quit = !self.pop_quit
+    }
 }
 
 impl Widget for &App {
@@ -123,6 +135,7 @@ impl Widget for &App {
         self.render_gauge4(gauge4_area, buf);
 
         self.render_help_popup(area, buf);
+        self.render_quit_popup(area, buf);
     }
 }
 
@@ -240,6 +253,37 @@ impl App {
                 )
                 .alignment(Alignment::Center)
                 .render(popup_area, buf)
+        }
+    }
+
+    fn render_quit_popup(&self, area: Rect, buf: &mut Buffer) {
+        if self.pop_quit {
+            let text = Line::from(vec![
+                Span::styled("Are you sure want to quit? ", Style::default().bold()),
+                Span::styled("y/n", Style::default().gray()),
+            ]);
+
+            let text_width = text.width() as u16;
+
+            let block_area = Rect::new(
+                (area.width.saturating_sub(text_width + 2)) / 2,
+                area.height / 2,
+                text_width + 2,
+                3,
+            );
+            Clear.render(block_area, buf);
+
+            Paragraph::new(text)
+                .block(
+                    Block::default()
+                        .title(Title::from("Quit?").alignment(Alignment::Left))
+                        .border_style(Style::default().fg(Color::Red))
+                        .border_type(BorderType::Thick)
+                        .borders(Borders::ALL),
+                )
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true })
+                .render(block_area, buf);
         }
     }
 }
