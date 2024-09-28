@@ -72,7 +72,7 @@ impl App {
                     if self.pop_quit {
                         match key.code {
                             KeyCode::Char('y') | KeyCode::Char('q') => self.quit(),
-                            _ => {}
+                            _ => self.pop_quit = false,
                         }
                     } else {
                         match key.code {
