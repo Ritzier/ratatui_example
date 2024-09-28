@@ -14,6 +14,7 @@ struct App {
     quit: bool,
     spin_list: Vec<Spin>,
     completed_count: usize,
+    maxinum_spin: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -64,6 +65,7 @@ impl App {
             quit: false,
             spin_list: vec![Spin::new(), Spin::new()],
             completed_count: 0,
+            maxinum_spin: 5,
         }
     }
 
@@ -83,13 +85,19 @@ impl App {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
                         KeyCode::Char('q') => self.quit = true,
-                        KeyCode::Char('a') => self.spin_list.push(Spin::new()),
+                        KeyCode::Char('a') => self.add_spinner(),
                         _ => {}
                     }
                 }
             }
         }
         Ok(())
+    }
+
+    fn add_spinner(&mut self) {
+        if self.spin_list.len() < self.maxinum_spin {
+            self.spin_list.push(Spin::new())
+        }
     }
 
     fn update_spinner(&mut self) {
