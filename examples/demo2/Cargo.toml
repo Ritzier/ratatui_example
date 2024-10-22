@@ -16,4 +16,5 @@ anyhow = "1"
 rand = "0.8"
 ratatui = "0.29"
 tokio = { version = "1", features = ["full"] }
-crossterm = "0.28"
+crossterm = { version = "0.28", features = ["event-stream"] }
+futures = "0.3.31"

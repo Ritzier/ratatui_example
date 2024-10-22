@@ -3,11 +3,12 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use crossterm::{
     event::{
-        DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseButton,
-        MouseEventKind,
+        DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode, KeyEventKind,
+        MouseButton, MouseEventKind,
     },
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
+use futures::{FutureExt, StreamExt};
 use rand::prelude::*;
 use ratatui::{
     prelude::CrosstermBackend,
@@ -50,6 +51,7 @@ pub struct Tui {
     pub event_tx: UnboundedSender<Message>,
     pub event_rx: UnboundedReceiver<Message>,
     pub model: Model,
+    pub event_stream: EventStream,
 }
 
 #[derive(Clone, Debug)]
@@ -62,12 +64,14 @@ impl Tui {
     pub fn new(frame_rate: f64, tick_rate: f64) -> Result<Self> {
         let terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
         let (event_tx, event_rx) = mpsc::unbounded_channel();
+        let event_stream = EventStream::new();
         Ok(Self {
             terminal,
             frame_rate,
             tick_rate,
             event_tx,
             event_rx,
+            event_stream,
             model: Model {
                 hover_pos: (0, 0),
                 entities: Vec::new(),
@@ -131,25 +135,22 @@ impl Tui {
                         UpdateCommand::None => continue
                     }
                 }
-                Ok(ready) = tokio::task::spawn_blocking(|| crossterm::event::poll(Duration::from_millis(100))) => {
-                    match ready {
-                        Ok(true) => {
-                            let event = crossterm::event::read()?;
-                            if let Err(e) = self.handle_event(event) {
+                event = self.event_stream.next().fuse() => {
+                    match event {
+                        Some(Ok(event)) => {
+                            if let Err(e) = self.handle_event(&event) {
                                 return Err(anyhow::anyhow!("Failed to handle event: {:?}", e));
                             }
                         }
-                        Ok(false) => continue,
-                        Err(e) => {
-                            return Err(anyhow::anyhow!("Failed to poll for events: {:?}", e));
-                        }
+                        Some(Err(e)) => return Err(anyhow::anyhow!("Error reading event: {:?}", e)),
+                        None => {}
                     }
                 }
             }
         }
     }
 
-    fn handle_event(&self, event: Event) -> Result<()> {
+    fn handle_event(&self, event: &Event) -> Result<()> {
         match event {
             Event::Key(key) => {
                 if key.kind == KeyEventKind::Press && key.code == KeyCode::Esc {
