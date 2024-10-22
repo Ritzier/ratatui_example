@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use demo2::Tui;
 
-/// Original Repository: https://github.com/d-holguin/async-ratatui
+// Original Repository: https://github.com/d-holguin/async-ratatui
 #[tokio::main]
 async fn main() -> Result<()> {
     if let Err(e) = run_app().await {
